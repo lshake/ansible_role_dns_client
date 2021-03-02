@@ -1,0 +1,18 @@
+dependencies: []
+
+galaxy_info:
+  author: lshake
+  description: Configure networkmanager connection dns values for ethernet
+  license: Apache-2.0
+  min_ansible_version: 2.9
+  platforms:
+    - name: EL
+      versions:
+        - 7
+        - 8
+  galaxy_tags:
+    - networkmanager
+    - system
+
+collections:
+  - community.general

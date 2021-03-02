@@ -1,0 +1,4 @@
+---
+- name: el_content
+  scm: git
+  src: git@github.com:lshake/ansible_role_el_content.git

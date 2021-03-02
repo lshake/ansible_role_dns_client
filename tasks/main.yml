@@ -1,0 +1,6 @@
+---
+- name: configure search domains
+  include: install.yml
+
+- name: configure dns
+  include: configure.yml

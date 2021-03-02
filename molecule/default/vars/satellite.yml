@@ -1,0 +1,5 @@
+---
+satellite_subs_fqdn: sat6f.lab.shakey.org
+satellite_vdc_fqdn: sat6g.lab.shakey.org
+satellite_register_username: 'admin'
+satellite_register_password: "{{ satellite_register_password_vault }}" # pragma: allowlist secret

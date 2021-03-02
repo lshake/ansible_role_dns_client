@@ -1,0 +1,8 @@
+---
+- name: Get disto variables
+  include_vars: "dns_client_{{ ansible_os_family }}_{{ ansible_distribution_major_version }}.yml"
+
+- name: Install needed network manager libs
+  ansible.builtin.package:
+    name: "{{ dns_client_packages }}"
+    state: present

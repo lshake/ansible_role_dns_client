@@ -1,0 +1,3 @@
+---
+dns_client_packages:
+  - NetworkManager-tui

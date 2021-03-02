@@ -1,0 +1,24 @@
+---
+- name: add dns search domains and nameservers
+  community.general.nmcli:
+    conn_name: "{{ dns_client_nm_connection }}"
+    type: ethernet
+    dns4_search: "{{ dns_client_search_domains }}"
+    dns4: "{{ dns_client_name_servers }}"
+    state: present
+  notify: restart networkmanager
+
+- name: disable the dhcp supplied name servers if required
+  block:
+
+  - name: check if dhcp name servers are in use
+    command: nmcli --fields ipv4.ignore-auto-dns connection show "{{ dns_client_nm_connection }}"
+    register: dns_client_ignore_auto_dns_results
+    changed_when: false
+
+  - name: turn off dhcp name servers
+    command: nmcli connection modify {{ dns_client_nm_connection }} ipv4.ignore-auto-dns yes
+    when: "'no' in dns_client_ignore_auto_dns_results.stdout.split(':').1"
+    notify: restart networkmanager
+
+  when: dns_client_ignore_auto_dns | bool

@@ -1,0 +1,8 @@
+---
+collections:
+  - name: community.general
+    version: 2.1.1
+    source: https://galaxy.ansible.com/
+  - name: redhat.satellite
+    version: 1.3.0
+    source: https://cloud.redhat.com/api/automation-hub/

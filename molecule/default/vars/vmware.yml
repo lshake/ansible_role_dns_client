@@ -1,0 +1,6 @@
+---
+vcenter_hostname: "{{ lookup('env','VCENTER_HOSTNAME') }}"
+vcenter_password: "{{ lookup('env','VCENTER_PASSWORD') }}" # pragma: allowlist secret
+vcenter_username: "{{ lookup('env','VCENTER_USERNAME') }}"
+vcenter_validate_certs: True
+# vcenter_vm_group_name: "Molecule"

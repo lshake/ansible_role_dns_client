@@ -1,0 +1,29 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks.git
+  rev: v3.4.0
+  hooks:
+    - id: end-of-file-fixer
+    - id: trailing-whitespace
+    - id: mixed-line-ending
+    - id: check-merge-conflict
+
+- repo: https://github.com/adrienverge/yamllint.git
+  rev: v1.26.0
+  hooks:
+    - id: yamllint
+      files: \.(yaml|yml)$
+      types: [file, yaml]
+      entry: yamllint --strict
+
+- repo: https://github.com/ansible-community/ansible-lint.git
+  rev: master
+  hooks:
+    - id: ansible-lint
+      language: python
+
+- repo: https://github.com/Yelp/detect-secrets.git
+  rev: v0.14.3
+  hooks:
+    - id: detect-secrets

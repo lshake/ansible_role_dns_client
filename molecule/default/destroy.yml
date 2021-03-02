@@ -1,0 +1,73 @@
+---
+- name: Destroy
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  no_log: "{{ molecule_no_log }}"
+
+  vars_files:
+    - vars/vmware.yml
+    - vars/satellite.yml
+    - vars/satellite_vault.yml
+
+  tasks:
+    - name: remove vm from vmware
+      vmware_guest:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}" # pragma: allowlist secret
+        validate_certs: "{{ vcenter_validate_certs | default('true') }}"
+        name: "{{ this_vm.name }}"
+        state: absent
+        force: yes
+      loop: "{{ molecule_yml.platforms }}"
+      loop_control:
+        loop_var: this_vm
+        label: "{{ this_vm.name }}"
+
+    - name: delete host in vdc satellite
+      redhat.satellite.host:
+        username: "{{ satellite_register_username }}"
+        password: "{{ satellite_register_password }}" # pragma: allowlist secret
+        server_url: "https://{{ satellite_vdc_fqdn }}"
+        validate_certs: no
+        name: "{{ item.name }}"
+        state: absent
+      register: satremoved
+      retries: 1
+      delay: 3
+      until: satremoved is success
+      loop: "{{ molecule_yml.platforms }}"
+      when: "'vdc' in item.groups"
+
+    - name: delete host in subs satellite
+      redhat.satellite.host:
+        username: "{{ satellite_register_username }}"
+        password: "{{ satellite_register_password }}" # pragma: allowlist secret
+        server_url: "https://{{ satellite_subs_fqdn }}"
+        validate_certs: no
+        name: "{{ item.name }}"
+        state: absent
+      register: satremoved
+      retries: 1
+      delay: 3
+      until: satremoved is success
+      loop: "{{ molecule_yml.platforms }}"
+      when: "'subs' in item.groups"
+
+
+    # Mandatory configuration for Molecule to function.
+
+    - name: Populate instance config
+      set_fact:
+        instance_conf: {}
+
+    - name: Dump instance config
+      copy:
+        content: |
+          # Molecule managed
+
+          {{ instance_conf | to_json | from_json | to_yaml }}
+        dest: "{{ molecule_instance_config }}"
+        mode: 0600
+      when: server.changed | default(false) | bool # noqa no-handler

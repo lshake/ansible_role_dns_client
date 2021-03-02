@@ -1,0 +1,7 @@
+---
+- name: Converge
+  hosts: all
+  tasks:
+    - name: "Include dns_client"
+      include_role:
+        name: "dns_client"

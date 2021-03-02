@@ -1,0 +1,149 @@
+---
+- name: Create
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  no_log: "{{ molecule_no_log }}"
+
+  vars_files:
+    - vars/vmware.yml
+
+  tasks:
+
+    - name: work out if we're running under CI
+      set_fact:
+        ci_build: "{{ lookup('env','magic_build_var') | ternary ('true','false') }}"
+
+    - name: provision the test vms
+      community.vmware.vmware_guest:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}" # pragma: allowlist secret
+        validate_certs: "{{ vcenter_validate_certs | default('true') }}"
+        datacenter: "{{ molecule_yml.driver.vcenter_datacenter }}"
+        cluster: "{{ molecule_yml.driver.vcenter_cluster }}"
+        resource_pool: "{{ molecule_yml.driver.vcenter_resource_pool | default(omit) }}"
+        datastore: "{{ molecule_yml.driver.vcenter_datastore }}"
+        name: "{{ this_vm.name }}"
+        state: present
+        guest_id: "{{ this_vm.guest_id | default (omit) }}"
+        folder: "{{ molecule_yml.driver.vcenter_folder }}"
+        template: "{{ this_vm.template }}"
+        disk: "{{ this_vm.disk }}"
+        hardware: "{{ this_vm.hardware }}"
+        networks: "{{ this_vm.networks }}"
+        customization: "{{ this_vm.customization | default(omit) }}"
+        annotation: "{{ this_vm.annotation | default('Provisioned via Ansible and molecule for ' + lookup('env', 'USER')) }}"
+      loop: "{{ molecule_yml.platforms }}"
+      loop_control:
+        loop_var: this_vm
+        label: "{{ this_vm.name }}"
+      async: 1100
+      poll: 0
+      register: sync_sleeper
+
+    - name: wait until all syncs have finished
+      async_status:
+        jid: "{{ item.ansible_job_id }}"
+      loop: "{{ sync_sleeper.results }}"
+      loop_control:
+        label: "{{ item.this_vm.name }}"
+      register: async_job_result
+      until: async_job_result.finished
+      retries: 999
+      delay: 10
+      when: item.ansible_job_id is defined
+
+    - name: only do drs stuff if drs_group is defined
+      block:
+
+      - name: get all the existing hosts in the drs group
+        community.vmware.vmware_drs_group_info:
+          hostname: "{{ vcenter_hostname }}"
+          password: "{{ vcenter_password }}" # pragma: allowlist secret
+          username: "{{ vcenter_username }}"
+          datacenter: "{{ molecule_yml.driver.vcenter_datacenter }}"
+        register: vm_group_members
+
+      - name: set fact for existing members
+        set_fact:
+          members: "{{ item.vms | default([]) }}"
+        loop: "{{ vm_group_members.drs_group_info.Cluster1 }}"
+        when: item.group_name == vcenter_vm_group_name
+
+      - name: assign vm to drs group
+        community.vmware.vmware_drs_group:
+          hostname: "{{ vcenter_hostname }}"
+          password: "{{ vcenter_password }}" # pragma: allowlist secret
+          username: "{{ vcenter_username }}"
+          datacenter: "{{ molecule_yml.driver.vcenter_datacenter }}"
+          cluster_name: "{{ molecule_yml.driver.vcenter_cluster }}"
+          group_name: "{{ vcenter_vm_group_name }}"
+          vms: "{{ molecule_yml.platforms | map(attribute='name') | list | union(members) }}"
+          state: present
+
+      when: vcenter_vm_group_name is defined
+
+    - name: power on the vm
+      community.vmware.vmware_guest_powerstate:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}" # pragma: allowlist secret
+        validate_certs: "{{ vcenter_validate_certs | default('true') }}"
+        name: "{{ this_vm.name }}"
+        folder: "{{ molecule_yml.driver.vcenter_folder }}"
+        state: powered-on
+      loop: "{{ molecule_yml.platforms }}"
+      loop_control:
+        loop_var: this_vm
+        label: "{{ this_vm.name }}"
+
+    - name: get vm info
+      community.vmware.vmware_guest_info:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}" # pragma: allowlist secret
+        validate_certs: "{{ vcenter_validate_certs | default('true') }}"
+        datacenter: "{{ molecule_yml.driver.vcenter_datacenter }}"
+        name: "{{ this_vm.name }}"
+        schema: "vsphere"
+        properties:
+          - guest.ipAddress
+      loop: "{{ molecule_yml.platforms }}"
+      loop_control:
+        loop_var: this_vm
+        label: "{{ this_vm.name }}"
+      register: ipwait_info
+      until: ipwait_info.instance.guest.ipAddress is not none
+      retries: 999
+      delay: 5
+
+    - debug:
+        var: ipwait_info
+
+    # Future Lee.  Do something here with the magic ci variable to set a local ssh key
+
+    - when: async_job_result.changed | default(false) | bool
+      block:
+        - name: Populate instance config dict
+          set_fact:
+            instance_conf_dict: {
+              'instance': "{{ item.this_vm.name }}",
+              'address': "{{ item.instance.guest.ipAddress }}",
+              'port': 22,
+              'user': "{{ item.this_vm.vm_user }}" }
+          loop: "{{ ipwait_info.results }}"
+          register: instance_config_dict
+
+        - name: Convert instance config dict to a list
+          set_fact:
+            instance_conf: "{{ instance_config_dict.results | map(attribute='ansible_facts.instance_conf_dict') | list }}"
+
+        - name: Dump instance config
+          copy:
+            content: |
+              # Molecule managed
+
+              {{ instance_conf | to_json | from_json | to_yaml }}
+            dest: "{{ molecule_instance_config }}"
+            mode: 0600

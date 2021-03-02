@@ -1,0 +1,92 @@
+---
+dependency:
+  name: galaxy
+driver:
+  name: delegated
+  dns_domain: lab.shakey.org
+  tag_names:
+    - os_family:linux
+    - os_distribution:redhat
+    - environment:molecule
+  vcenter_datacenter: "Datacenter"
+  vcenter_datastore: freenasssd
+  vcenter_cluster: Cluster1
+  vcenter_folder: /molecule
+  vcenter_resource_pool: molecule_pool
+  dns_servers:
+    - 192.168.12.23
+platforms:
+  - name: ${INSTANCEID:-ar-dnsclient}-1.lab.shakey.org
+    guest_id: rhel8_64Guest
+    template: rhel8-release
+    hardware:
+      memory_mb: '2048'
+      num_cpus: '1'
+    disk:
+      - size_gb: 100
+        type: thin
+    networks:
+      - name: VMNetwork37
+        type: dhcp
+        start_connected: true
+        allow_guest_control: true
+        state: present
+        device_type: vmxnet3
+    customization:
+      hostname: ${INSTANCEID:-ar-dnsclient}-1
+      domain: lab.shakey.org
+    satellite_activation_key: rhel8
+    vm_user: root
+    groups:
+      - rhel8
+  - name: ${INSTANCEID-ar-dnsclient}-2.lab.shakey.org
+    guest_id: rhel7_64Guest
+    template: rhel7-release
+    hardware:
+      memory_mb: '2048'
+      num_cpus: '1'
+    disk:
+      - size_gb: 100
+        type: thin
+    networks:
+      - name: VMNetwork37
+        type: dhcp
+        start_connected: true
+        allow_guest_control: true
+        state: present
+        device_type: vmxnet3
+    customization:
+      hostname: ${INSTANCEID:-ar-dnsclient}-2
+      domain: lab.shakey.org
+    satellite_activation_key: rhel7
+    vm_user: root
+    groups:
+      - rhel7
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      vault_password_file: ~/.vault_pass
+  inventory:
+    group_vars:
+      all:
+        dns_client_search_domains:
+          - lab.shakey.org
+          - home.shakey.org
+          - dhcp.shakey.org
+        dns_client_name_servers:
+          - 192.168.12.23
+          - 192.168.12.24
+        dns_client_nm_connection: eth0
+        satellite_capsule_fqdn: sat6g.lab.shakey.org
+        satellite_organization: Shakey_Towers_Lab
+      rhel7:
+        satellite_activation_key: rhel7
+        satellite_repositories: rhel-7-server-satellite-tools-6.8-rpms
+      rhel8:
+        satellite_activation_key: rhel8
+        satellite_repositories: satellite-tools-6.8-for-rhel-8-x86_64-rpms
+verifier:
+  name: ansible
+lint: |
+  ansible-lint --exclude molecule/default/

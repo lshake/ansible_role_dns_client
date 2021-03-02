@@ -1,0 +1,37 @@
+---
+# Quick and dirty tests for the common use case
+- name: Verify
+  hosts: all
+  gather_facts: true
+  tasks:
+
+    - name: get check if name servers are in resolv.conf
+      ansible.builtin.lineinfile:
+        dest: "/etc/resolv.conf"
+        line: "nameserver {{ item }}"
+        regexp: "^nameserver {{ item }}$"
+      check_mode: true
+      register: check_name_servers
+      loop: "{{ dns_client_name_servers }}"
+
+    - name: check if name servers are in resolv.conf
+      assert:
+        that:
+          - "check_name_servers is not changed"
+        fail_msg: "name servers not present in resolv.conf"
+
+    - name: get check if search domains are in resolv.conf
+      ansible.builtin.lineinfile:
+        dest: "/etc/resolv.conf"
+        line: 'search\1{{ item }}\2'
+        regexp: '^search(.*){{ item }}(.*)$'
+        backrefs: yes
+      check_mode: true
+      register: check_search_domains
+      loop: "{{ dns_client_search_domains }}"
+
+    - name: get check search domains are in resolv.conf
+      assert:
+        that:
+          - "check_search_domains is not changed"
+        fail_msg: "search domains not present in resolv.conf"
